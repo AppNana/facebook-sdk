@@ -41,7 +41,7 @@ __version__ = version.__version__
 FACEBOOK_GRAPH_URL = "https://graph.facebook.com/"
 FACEBOOK_WWW_URL = "https://www.facebook.com/"
 FACEBOOK_OAUTH_DIALOG_PATH = "dialog/oauth?"
-VALID_API_VERSIONS = ["10.0", "11.0", "12.0"]
+VALID_API_VERSIONS = ["16.0", "17.0"]
 VALID_SEARCH_TYPES = ["place", "placetopic"]
 
 
@@ -96,13 +96,7 @@ class GraphAPI(object):
             version_regex = re.compile(r"^\d{1,2}\.\d{1,2}$")
             match = version_regex.search(str(version))
             if match is not None:
-                if str(version) not in VALID_API_VERSIONS:
-                    raise GraphAPIError(
-                        "Valid API versions are "
-                        + str(VALID_API_VERSIONS).strip("[]")
-                    )
-                else:
-                    self.version = "v" + str(version)
+                self.version = "v" + str(version)
             else:
                 raise GraphAPIError(
                     "Version number should be in the"
