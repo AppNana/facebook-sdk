@@ -33,15 +33,17 @@ import json
 import re
 from urllib.parse import parse_qs, urlencode, urlparse
 
-from . import version
+from . import version as project_version
 
 
-__version__ = version.__version__
+__version__ = project_version.__version__
 
 FACEBOOK_GRAPH_URL = "https://graph.facebook.com/"
+FACEBOOK_VIDEO_GRAPH_URL = "https://graph-video.facebook.com/"
+THREADS_GRAPH_URL = "https://graph.threads.net/"
 FACEBOOK_WWW_URL = "https://www.facebook.com/"
 FACEBOOK_OAUTH_DIALOG_PATH = "dialog/oauth?"
-VALID_API_VERSIONS = ["16.0", "17.0"]
+DEFAULT_API_VERSION = "20.0"
 VALID_SEARCH_TYPES = ["place", "placetopic"]
 
 
@@ -82,15 +84,14 @@ class GraphAPI(object):
         proxies=None,
         session=None,
         app_secret=None,
+        graph_url=FACEBOOK_GRAPH_URL,
     ):
-        # The default version is only used if the version kwarg does not exist.
-        default_version = VALID_API_VERSIONS[0]
-
         self.access_token = access_token
         self.timeout = timeout
         self.proxies = proxies
         self.session = session or requests.Session()
         self.app_secret_hmac = None
+        self.graph_url = graph_url
 
         if version:
             version_regex = re.compile(r"^\d{1,2}\.\d{1,2}$")
@@ -103,7 +104,7 @@ class GraphAPI(object):
                     " following format: #.# (e.g. 2.0)."
                 )
         else:
-            self.version = "v" + default_version
+            self.version = "v" + DEFAULT_API_VERSION
 
         if app_secret and access_token:
             self.app_secret_hmac = hmac.new(
@@ -225,13 +226,30 @@ class GraphAPI(object):
             method="POST",
         )
 
+    def put_video_with_thumbnail(self, video, thumbnail, album_path='me/videos', **kwargs):
+        """
+        Upload a video with thumbnail using multipart/form-data.
+
+        video - A file object representing the video to be uploaded.
+        thumbnail - A file object representing the thumbnail to be uploaded.
+        album_path - A path representing where the image should be uploaded.
+
+        """
+        return self.request(
+            "{0}/{1}".format(self.version, album_path),
+            post_args=kwargs,
+            files={"source": ("video.mp4", video), "thumb": ("thumbnail.jpg", thumbnail)},
+            method="POST",
+            graph_url=FACEBOOK_VIDEO_GRAPH_URL,
+        )
+
     def get_version(self):
         """Fetches the current version number of the Graph API being used."""
         args = {"access_token": self.access_token}
         try:
             response = self.session.request(
                 "GET",
-                FACEBOOK_GRAPH_URL + self.version + "/me",
+                self.graph_url + self.version + "/me",
                 params=args,
                 timeout=self.timeout,
                 proxies=self.proxies,
@@ -248,7 +266,7 @@ class GraphAPI(object):
             raise GraphAPIError("API version number not available")
 
     def request(
-        self, path, args=None, post_args=None, files=None, method=None
+        self, path, args=None, post_args=None, files=None, method=None, graph_url=None
     ):
         """Fetches the given path in the Graph API.
 
@@ -261,6 +279,8 @@ class GraphAPI(object):
             args = dict()
         if post_args is not None:
             method = "POST"
+        if not graph_url:
+            graph_url = self.graph_url
 
         # Add `access_token` and app secret proof (`app_secret_hmac`) to
         # post_args or args if they exist and have not already been included.
@@ -280,7 +300,7 @@ class GraphAPI(object):
         try:
             response = self.session.request(
                 method or "GET",
-                FACEBOOK_GRAPH_URL + path,
+                graph_url + path,
                 timeout=self.timeout,
                 params=args,
                 data=post_args,
